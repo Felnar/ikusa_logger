@@ -1,8 +1,8 @@
 # BDO Combat Logger — experimental fork
 
 > ⚠️ **Experimental fork of [Arkantik/ikusa_logger](https://github.com/Arkantik/ikusa_logger).**
-> For the actively supported application — installer, docs, and help — use the
-> **upstream repository**. This fork exists only to test changes and may be unstable.
+> For the actively supported application, use the **upstream repository**.
+> This fork exists only to test changes and may be unstable.
 >
 > 🐧 **Linux users:** see the [`linux`](https://github.com/Felnar/ikusa_logger/tree/linux) branch.
 
