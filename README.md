@@ -1,12 +1,16 @@
-# BDO Combat Logger — Linux
+# BDO Combat Logger — Linux (experimental fork)
+
+> ⚠️ **Experimental fork of [Arkantik/ikusa_logger](https://github.com/Arkantik/ikusa_logger).**
+> For the actively supported (Windows) application, use the **upstream repository**.
+> This fork exists only to test changes and may be unstable.
 
 A tool for Black Desert Online that captures and logs combat messages during PvP
-activities such as Node Wars, Sieges, and War of the Roses.
+(Node Wars, Sieges, War of the Roses).
 
-> This is the **Linux** branch. It is the same React/Neutralino application as
-> `main`, with the Windows-only installer, Npcap and `.bat` tooling removed and a
-> native Linux build/run path (`build.sh` / `start.sh`, using `libpcap` +
-> `setcap` instead of Npcap).
+> This is the **Linux** branch: the same React/Neutralino app as the rest of this
+> fork, with the Windows-only installer, Npcap and `.bat` tooling removed and a
+> native Linux build/run path (`build.sh` / `start.sh`, using `libpcap` + `setcap`
+> instead of Npcap). It also includes this fork's kill-offset detection change.
 
 ## Prerequisites
 
