@@ -106,7 +106,10 @@ function Logger({ logs, height = 155, loading = false, onStatsUpdate, onDeleteLo
 
         if (logs.length < 50 || logs.length % 100 === 0) {
             const killOffsets = findKillOffset(logs);
-            setPossibleKillOffsets(killOffsets);
+            // Only re-point when detection found a toggling candidate. An all-kills
+            // or all-deaths window returns [] — keep the persisted/seeded offset
+            // instead of clobbering it with a low-evidence guess.
+            if (killOffsets.length > 0) setPossibleKillOffsets(killOffsets);
             calculateConfig();
         }
     }
@@ -166,27 +169,44 @@ function Logger({ logs, height = 155, loading = false, onStatsUpdate, onDeleteLo
     }
 
     function findKillOffset(logs: LogType[]) {
-        const allIndicies: number[] = [];
+        // Candidate byte positions: anywhere a kill flag ('01') shows up, outside
+        // the name regions. A Set de-dupes positions seen across multiple logs.
+        const candidates = new Set<number>();
         for (const log of logs) {
-            let indicies = find_all_indicies(log.hex, '01');
-            indicies = indicies.filter((index) =>
+            const indicies = find_all_indicies(log.hex, '01').filter((index) =>
                 log.names.every((n) => index > n.offset + 64 || index < n.offset)
             );
-            allIndicies.push(...indicies);
+            for (const index of indicies) candidates.add(index);
         }
 
-        const possibleKillOffsetsMap = new Map<number, number>();
-        for (const log of logs) {
-            for (const index of allIndicies) {
-                if (log.hex.slice(index, index + 2) === '00') {
-                    possibleKillOffsetsMap.set(index, (possibleKillOffsetsMap.get(index) || 0) + 1);
-                }
+        // The real kill offset is a binary toggle: '01' for every kill, '00' for
+        // every death. Score each candidate by how *consistently* it holds one of
+        // those two values across all logs (coverage), NOT by the raw death count.
+        // Ranking by death count alone bakes in the guild's K/D ratio, so a high-K/D
+        // period drowns the real offset under noisy bytes that merely sit at '00' a
+        // lot. '00' must still appear (deaths > 0) so we never trust a noisy '01'.
+        const stats = Array.from(candidates).map((index) => {
+            let kills = 0;
+            let deaths = 0;
+            for (const log of logs) {
+                const byte = log.hex.slice(index, index + 2);
+                if (byte === '01') kills++;
+                else if (byte === '00') deaths++;
             }
-        }
+            return { index, kills, deaths };
+        });
 
-        const sorted = Array.from(possibleKillOffsetsMap.entries())
-            .sort((a, b) => b[1] - a[1])
-            .map((a) => a[0] + 1);
+        const sorted = stats
+            // A real flag must actually toggle between kills and deaths.
+            .filter((s) => s.kills > 0 && s.deaths > 0)
+            .sort((a, b) => {
+                // Most consistent (kill-or-death in the most logs) wins.
+                const coverage = (b.kills + b.deaths) - (a.kills + a.deaths);
+                if (coverage !== 0) return coverage;
+                // Tie-break toward the position that toggles most evenly.
+                return Math.min(b.kills, b.deaths) - Math.min(a.kills, a.deaths);
+            })
+            .map((s) => s.index + 1);
 
         return sorted;
     }
