@@ -19,6 +19,7 @@ A tool for Black Desert Online that captures and logs combat messages during PvP
 
 There's no prebuilt installer for this branch.
 
+**DIY**
 **Prerequisites:** [Node.js 20+](https://nodejs.org/en/download/),
 [Python 3](https://www.python.org/downloads/) (tick **"Add Python to PATH"**),
 [Npcap 1.7.8+](https://npcap.com/dist/).
