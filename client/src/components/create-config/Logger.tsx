@@ -180,31 +180,47 @@ function Logger({ logs, height = 155, loading = false, onStatsUpdate, onDeleteLo
         }
 
         // The real kill offset is a binary toggle: '01' for every kill, '00' for
-        // every death. Score each candidate by how *consistently* it holds one of
-        // those two values across all logs (coverage), NOT by the raw death count.
-        // Ranking by death count alone bakes in the guild's K/D ratio, so a high-K/D
-        // period drowns the real offset under noisy bytes that merely sit at '00' a
-        // lot. '00' must still appear (deaths > 0) so we never trust a noisy '01'.
+        // every death. Rank candidates by BALANCE = min(kills, deaths). The real
+        // flag is the one binary field where BOTH outcomes are substantially
+        // represented, because it mirrors actual combat (a war produces many kills
+        // AND many deaths). Junk binary bytes (counters, damage low-nibbles) are
+        // overwhelmingly one value with only a handful of coincidental flips, so
+        // their minority count stays tiny (1-2) across a whole war.
+        //
+        // This supersedes the earlier coverage/purity ranking, which was NOT safe:
+        // a coincidental all-'00' byte with a single stray '01' reaches 100%
+        // coverage and outranks the real flag as soon as the real flag has even one
+        // reading that is neither '00' nor '01'. That flipped a whole nodewar to
+        // "all deaths" in the field (junk offset with 1 kill/933 beat the real flag
+        // at 377/554). Balance is patch-independent (no offset assumption) and
+        // survives high K/D: even a 5:1 stomp leaves dozens of minority events, far
+        // above the ~1-2 noise floor of a random binary byte.
+        const total = logs.length;
         const stats = Array.from(candidates).map((index) => {
             let kills = 0;
             let deaths = 0;
+            let other = 0; // neither '00' nor '01' -> not a clean binary field
             for (const log of logs) {
                 const byte = log.hex.slice(index, index + 2);
                 if (byte === '01') kills++;
                 else if (byte === '00') deaths++;
+                else other++;
             }
-            return { index, kills, deaths };
+            return { index, kills, deaths, other };
         });
 
         const sorted = stats
-            // A real flag must actually toggle between kills and deaths.
-            .filter((s) => s.kills > 0 && s.deaths > 0)
+            // Both outcomes must be seen, and it must be a real binary field
+            // (present as 00/01 in most packets) — excludes bytes that are mostly
+            // "other" and only coincidentally binary.
+            .filter((s) => s.kills > 0 && s.deaths > 0 && s.kills + s.deaths >= total / 2)
             .sort((a, b) => {
-                // Most consistent (kill-or-death in the most logs) wins.
-                const coverage = (b.kills + b.deaths) - (a.kills + a.deaths);
-                if (coverage !== 0) return coverage;
-                // Tie-break toward the position that toggles most evenly.
-                return Math.min(b.kills, b.deaths) - Math.min(a.kills, a.deaths);
+                // Most balanced toggle first: the flag with the largest minority count.
+                const balance = Math.min(b.kills, b.deaths) - Math.min(a.kills, a.deaths);
+                if (balance !== 0) return balance;
+                // Tie-breaks: cleaner binary field, then higher coverage.
+                if (a.other !== b.other) return a.other - b.other;
+                return (b.kills + b.deaths) - (a.kills + a.deaths);
             })
             .map((s) => s.index + 1);
 
